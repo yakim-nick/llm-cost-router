@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-router-api
+  labels:
+    app: llm-router
+    component: api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
+  selector:
+    app: llm-router
+    component: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-router-redis
+  labels:
+    app: llm-router
+    component: redis
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+      name: redis
+  selector:
+    app: llm-router
+    component: redis
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-router-postgres
+  labels:
+    app: llm-router
+    component: postgres
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+      name: postgres
+  selector:
+    app: llm-router
+    component: postgres

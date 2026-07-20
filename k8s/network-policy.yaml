@@ -1,0 +1,38 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: llm-router-network-policy
+  labels:
+    app: llm-router
+    component: network-policy
+spec:
+  podSelector:
+    matchLabels:
+      app: llm-router
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: llm-router
+        - namespaceSelector: {}
+      ports:
+        - port: 8000
+          protocol: TCP
+        - port: 6379
+          protocol: TCP
+        - port: 5432
+          protocol: TCP
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+      ports:
+        - port: 443
+          protocol: TCP
+        - port: 80
+          protocol: TCP

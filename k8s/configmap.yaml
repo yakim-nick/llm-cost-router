@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm-router-config
+  labels:
+    app: llm-router
+data:
+  LOG_LEVEL: "INFO"
+  ENVIRONMENT: "production"
+  COMPLEXITY_THRESHOLD_LOW: "0.3"
+  COMPLEXITY_THRESHOLD_HIGH: "0.7"
+  PROVIDER_PREFERENCE_ORDER: "openai,anthropic,local"
+  PROMETHEUS_MULTIPROC_DIR: "/tmp"
