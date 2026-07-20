@@ -1,31 +1,32 @@
 # llm-cost-router
 
-LLM API Gateway / cost router. FastAPI-сервис, который маршрутизирует запросы
-к разным LLM-провiders (OpenAI, Anthropic), кэширует семантически похожие
-запросы, собирает метрики стоимости/латентности (Prometheus) и отдаёт
-админку для анализа расходов.
+An LLM API gateway / cost router. A FastAPI service that routes requests to
+multiple LLM providers (OpenAI, Anthropic), caches semantically similar
+requests, collects cost/latency metrics (Prometheus), and exposes an admin
+view for spend analysis.
 
-## Стек
+## Stack
 - FastAPI (proxy + admin routes)
-- Semantic cache (сходство запросов → меньше токенов = дешевле)
-- Prometheus-метрики (см. `prometheus/prometheus.yml`)
-- SQLite/Postgres через `src/models/database.py`
+- Semantic cache (similar-request hit → fewer tokens → lower cost)
+- Prometheus metrics (see `prometheus/prometheus.yml`)
+- SQLite/Postgres via `src/models/database.py`
 
-## Запуск
+## Run
 ```bash
-pip install -e .            # или: pip install -r requirements.txt
+pip install -e .            # or: pip install -r requirements.txt
 uvicorn src.main:app --port 8000
-# метрики: GET /metrics
+# metrics: GET /metrics
 ```
 
-## Деплой
+## Deploy
 ```bash
-docker build -t llm-cost-router .   # если есть Dockerfile
-docker-compose up                    # если есть compose
+docker build -t llm-cost-router .   # if a Dockerfile is present
+docker-compose up                    # if a compose file is present
 ```
 
 ## CI
-`.github/workflows/ci.yml` — синтаксис-проверка + pytest на каждый push.
+`.github/workflows/ci.yml` — syntax check + `pytest` on every push, with
+least-privilege permissions and pinned action versions.
 
-## Автор
+## Author
 Nick Yakim — github.com/yakim-nick
