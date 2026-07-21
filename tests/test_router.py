@@ -61,6 +61,19 @@ class TestComplexityRouter:
         model = self.router.select_model("openai", "best", 0.9)
         assert model == "gpt-4o"
 
+    def test_select_model_anthropic_tiers(self):
+        assert self.router.select_model("anthropic", "cheapest", 0.1) == "claude-3-haiku"
+        assert self.router.select_model("anthropic", "balanced", 0.5) == "claude-3-sonnet"
+        assert self.router.select_model("anthropic", "best", 0.9) == "claude-3-opus"
+
+    def test_select_provider_tier_by_complexity(self):
+        _, tier_low = self.router.select_provider(0.1)
+        _, tier_high = self.router.select_provider(0.9)
+        _, tier_mid = self.router.select_provider(0.5)
+        assert tier_low == "cheapest"
+        assert tier_high == "best"
+        assert tier_mid == "balanced"
+
 
 class TestAuthService:
     def test_generate_key_format(self):
