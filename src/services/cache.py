@@ -7,7 +7,7 @@ import redis.asyncio as redis
 from src.config import settings
 
 
-class SemanticCache:
+class ResponseCache:
     def __init__(self, ttl: int = 3600):
         self._ttl = ttl
         self._client: redis.Redis | None = None
@@ -21,7 +21,7 @@ class SemanticCache:
 
     def _make_key(self, messages: list[dict], model: str) -> str:
         raw = json.dumps(messages, sort_keys=True) + model
-        return f"semantic:{hashlib.sha256(raw.encode()).hexdigest()}"
+        return f"response:{hashlib.sha256(raw.encode()).hexdigest()}"
 
     async def get(self, messages: list[dict], model: str) -> str | None:
         if not self._client:

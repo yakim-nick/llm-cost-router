@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
@@ -7,7 +9,11 @@ from src.services.auth import AuthService
 from src.models.database import get_pool
 
 router = APIRouter(tags=["admin"])
-_auth = AuthService()
+
+
+@lru_cache(maxsize=1)
+def _get_auth() -> AuthService:
+    return AuthService()
 
 
 class CreateKeyRequest(BaseModel):
@@ -19,13 +25,13 @@ class CreateKeyRequest(BaseModel):
 async def create_api_key(body: CreateKeyRequest):
     if body.tier not in ("standard", "premium", "unlimited"):
         raise HTTPException(status_code=400, detail=f"Invalid tier: {body.tier}")
-    raw_key = await _auth.create_key(body.name, body.tier)
+    raw_key = await _get_auth().create_key(body.name, body.tier)
     return {"api_key": raw_key, "name": body.name, "tier": body.tier}
 
 
 @router.get("/keys")
 async def list_api_keys():
-    keys = await _auth.list_keys()
+    keys = await _get_auth().list_keys()
     return {"keys": keys}
 
 

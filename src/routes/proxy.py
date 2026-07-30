@@ -6,8 +6,10 @@ import logging
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 
+from functools import lru_cache
+
 from src.services.router import ComplexityRouter
-from src.services.cache import SemanticCache
+from src.services.cache import ResponseCache
 from src.services.metrics import MetricsCollector
 from src.services.providers.openai_provider import OpenAIProvider
 from src.services.providers.anthropic_provider import AnthropicProvider
@@ -19,7 +21,11 @@ router = APIRouter(tags=["proxy"])
 _complexity_router = ComplexityRouter()
 _openai = OpenAIProvider()
 _anthropic = AnthropicProvider()
-_auth = AuthService()
+
+
+@lru_cache(maxsize=1)
+def _get_auth() -> AuthService:
+    return AuthService()
 
 COST_PER_TOKEN = {
     "gpt-4o": {"prompt": 0.000005, "completion": 0.000015},
@@ -47,7 +53,7 @@ async def chat_completions(request: Request, body: ChatRequest):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
 
     token = auth_header.removeprefix("Bearer ")
-    api_key = await _auth.validate_key(token)
+    api_key = await _get_auth().validate_key(token)
     if not api_key:
         raise HTTPException(status_code=403, detail="Invalid API key")
 

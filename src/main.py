@@ -12,7 +12,7 @@ from src.config import settings
 from src.models.database import init_db, close_db
 from src.routes.proxy import router as proxy_router
 from src.routes.admin import router as admin_router
-from src.services.cache import SemanticCache
+from src.services.cache import ResponseCache
 from src.services.metrics import MetricsCollector
 
 logging.basicConfig(
@@ -32,7 +32,7 @@ REQUEST_LATENCY = Histogram(
 async def lifespan(app: FastAPI):
     logger.info("Starting LLM API Gateway")
     await init_db()
-    app.state.cache = SemanticCache()
+    app.state.cache = ResponseCache()
     app.state.metrics = MetricsCollector()
     await app.state.cache.connect()
     yield

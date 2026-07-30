@@ -1,28 +1,28 @@
 from __future__ import annotations
 
 import pytest
-from src.services.cache import SemanticCache
+from src.services.cache import ResponseCache
 from src.services.router import ComplexityRouter
 from src.services.auth import AuthService
 
 
-class TestSemanticCache:
+class TestResponseCache:
     def test_make_key_deterministic(self):
-        cache = SemanticCache()
+        cache = ResponseCache()
         messages = [{"role": "user", "content": "hello"}]
         key1 = cache._make_key(messages, "gpt-4o")
         key2 = cache._make_key(messages, "gpt-4o")
         assert key1 == key2
 
     def test_make_key_differs_by_model(self):
-        cache = SemanticCache()
+        cache = ResponseCache()
         messages = [{"role": "user", "content": "hello"}]
         key1 = cache._make_key(messages, "gpt-4o")
         key2 = cache._make_key(messages, "gpt-4o-mini")
         assert key1 != key2
 
     def test_make_key_differs_by_messages(self):
-        cache = SemanticCache()
+        cache = ResponseCache()
         key1 = cache._make_key([{"role": "user", "content": "hi"}], "gpt-4o")
         key2 = cache._make_key([{"role": "user", "content": "hello"}], "gpt-4o")
         assert key1 != key2
