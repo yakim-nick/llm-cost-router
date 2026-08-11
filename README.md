@@ -1,5 +1,7 @@
 # llm-cost-router
 
+[![CI](https://github.com/yakim-nick/llm-cost-router/actions/workflows/ci.yml/badge.svg)](https://github.com/yakim-nick/llm-cost-router/actions/workflows/ci.yml)
+
 > **Engineering report** — an LLM API gateway that routes requests across providers,
 > caches semantically similar calls, and measures cost/latency. By Nick Yakim.
 
