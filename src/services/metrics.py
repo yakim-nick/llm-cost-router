@@ -2,8 +2,12 @@ from __future__ import annotations
 
 from prometheus_client import Counter, Histogram, Gauge
 
+# Prometheus collectors keyed by provider+model; names must stay stable
+# because downstream dashboards and alerts depend on them.
 latency_histogram = Histogram(
-    "llm_provider_latency_seconds", "Per-provider latency", ["provider", "model"],
+    "llm_provider_latency_seconds",
+    "Per-provider latency",
+    ["provider", "model"],
     buckets=[0.1, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0],
 )
 cost_total = Counter("llm_cost_usd_total", "Total cost in USD", ["provider", "model"])
@@ -12,6 +16,8 @@ active_keys = Gauge("llm_active_api_keys", "Number of active API keys")
 
 
 class MetricsCollector:
+    """Facade that records LLM usage into the Prometheus collectors."""
+
     def record_latency(self, provider: str, model: str, seconds: float) -> None:
         latency_histogram.labels(provider=provider, model=model).observe(seconds)
 

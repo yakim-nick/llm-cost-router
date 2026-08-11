@@ -19,7 +19,7 @@ class TokenBucketRateLimiter:
         self._last_refill: dict[str, float] = defaultdict(float)
         self._lock = asyncio.Lock()
 
-    async def check(
+    async def is_request_allowed(
         self,
         key: str,
         rate: float | None = None,
@@ -43,7 +43,7 @@ class TokenBucketRateLimiter:
             self._tokens[key] = tokens
             return False
 
-    async def reset(self, key: str) -> None:
+    async def reset_key(self, key: str) -> None:
         """Remove the bucket for *key* so it starts fresh."""
         async with self._lock:
             self._tokens.pop(key, None)

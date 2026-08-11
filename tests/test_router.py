@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import pytest
 from src.services.cache import ResponseCache
 from src.services.router import ComplexityRouter
 from src.services.auth import AuthService
@@ -41,11 +40,17 @@ class TestComplexityRouter:
         assert 0.0 <= score <= 1.0
 
     def test_code_increases_complexity(self):
-        simple = self.router.assess_complexity([{"role": "user", "content": "What is the weather?"}])
-        code = self.router.assess_complexity([{
-            "role": "user",
-            "content": "Write a Python function that implements merge sort with O(n log n) complexity",
-        }])
+        simple = self.router.assess_complexity(
+            [{"role": "user", "content": "What is the weather?"}]
+        )
+        code = self.router.assess_complexity(
+            [
+                {
+                    "role": "user",
+                    "content": "Write a Python function that implements merge sort with O(n log n) complexity",
+                }
+            ]
+        )
         assert code > simple
 
     def test_select_provider_returns_tuple(self):
