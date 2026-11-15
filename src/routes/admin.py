@@ -31,10 +31,10 @@ router = APIRouter(tags=["admin"], dependencies=[Depends(require_admin)])
 
 VALID_TIERS = ("standard", "premium", "unlimited")
 
-# Aggregate usage per provider/model; costs are rounded to 4 decimals.
+# Aggregate usage per provider/model; costs keep 6 decimals (per-call costs are tiny).
 _USAGE_AGGREGATION_SQL = """
     SELECT provider, model,
-           sum(cost)::numeric(10,4) as total_cost,
+           sum(cost)::numeric(12,6) as total_cost,
            sum(prompt_tokens) as total_prompt,
            sum(completion_tokens) as total_completion,
            count(*) as request_count

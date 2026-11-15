@@ -58,6 +58,11 @@ uvicorn src.main:app --port 8000
 # metrics: GET /metrics
 ```
 
+### Usage tracking
+Each provider call is stored in the `usage_logs` table (API key, provider, model,
+tokens, cost, latency); cache hits are not logged. `GET /admin/usage` aggregates it
+per provider/model.
+
 ### Admin API
 `/admin/keys` (create/list API keys) and `/admin/usage` require
 `Authorization: Bearer <ADMIN_TOKEN>`. If `ADMIN_TOKEN` is empty the admin API
@@ -79,8 +84,6 @@ complexity. Provider failures return a generic 502 (details only in the logs).
 - The cache is exact-match, not semantic.
 - No fallback to another provider when a call fails (the `local` entry in
   `PROVIDER_PREFERENCE_ORDER` has no implementation yet).
-- Request usage is exposed through Prometheus; `/admin/usage` reads a
-  `usage_logs` table that is not populated yet.
 - The token-bucket rate limiter in `src/middleware/rate_limit.py` is not wired in.
 - Model names and prices in `proxy.py` / `router.py` are hard-coded and may be
   out of date; check the provider docs before relying on cost numbers.
@@ -88,7 +91,7 @@ complexity. Provider failures return a generic 502 (details only in the logs).
 
 ## 8. Roadmap
 - Semantic cache (embeddings + similarity threshold).
-- Persist per-request usage to `usage_logs`; provider fallback; rate limiting.
+- Provider fallback; wire in rate limiting; log cache hits in usage.
 
 ## 9. CI
 `.github/workflows/ci.yml` — syntax check + pytest, least-privilege

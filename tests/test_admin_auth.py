@@ -57,3 +57,8 @@ def test_correct_token_allowed(client, monkeypatch):
     assert res.status_code == 200
     assert res.json()["api_key"] == "lkg_fake"
     assert client.get("/admin/keys", headers=headers).json() == {"keys": []}
+
+
+def test_usage_sql_keeps_six_decimals():
+    """Per-call costs are ~1e-5 USD; rounding the sum to 4 decimals showed 0."""
+    assert "numeric(12,6)" in admin._USAGE_AGGREGATION_SQL
