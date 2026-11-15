@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Gauge, Histogram
 
 # Prometheus collectors keyed by provider+model; names must stay stable
 # because downstream dashboards and alerts depend on them.

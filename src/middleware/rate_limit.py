@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
 import asyncio
+import time
 from collections import defaultdict
 
 

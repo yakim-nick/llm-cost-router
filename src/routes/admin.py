@@ -5,8 +5,8 @@ from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from src.services.auth import AuthService
 from src.models.database import get_pool
+from src.services.auth import AuthService
 
 router = APIRouter(tags=["admin"])
 

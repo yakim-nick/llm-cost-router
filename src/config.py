@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 # Load .env first so settings below can be overridden from the environment.
 load_dotenv()

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import secrets
 import logging
+import secrets
 
 import bcrypt
 

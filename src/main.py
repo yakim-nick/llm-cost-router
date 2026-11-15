@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import time
 import logging
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -9,9 +9,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from prometheus_client import Counter, Histogram, generate_latest
 
 from src.config import settings
-from src.models.database import init_db, close_db
-from src.routes.proxy import router as proxy_router
+from src.models.database import close_db, init_db
 from src.routes.admin import router as admin_router
+from src.routes.proxy import router as proxy_router
 from src.services.cache import ResponseCache
 from src.services.metrics import MetricsCollector
 
@@ -83,7 +83,7 @@ def _record_gateway_request(request: Request, status_code: int, elapsed: float) 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Return a uniform 500 body instead of leaking stack traces to clients."""
-    logger.error(f"Unhandled: {exc}", exc_info=True)
+    logger.error(f"Unhandled: {exc}", exc_info=exc)
     return JSONResponse(status_code=500, content={"error": "internal_server_error"})
 
 
