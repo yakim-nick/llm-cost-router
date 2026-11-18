@@ -3,27 +3,27 @@
 [![CI](https://github.com/yakim-nick/llm-cost-router/actions/workflows/ci.yml/badge.svg)](https://github.com/yakim-nick/llm-cost-router/actions/workflows/ci.yml)
 
 > **Engineering report** — an LLM API gateway that routes requests across providers,
-> caches semantically similar calls, and measures cost/latency. By Nick Yakim.
+> caches identical calls, and exposes cost/latency metrics. By Nick Yakim.
 
 ## 1. Problem & goal
-Calling LLMs directly gets expensive and opaque: no central cost view, no
-deduplication, no fallback between providers. This gateway adds a routing layer
-that cuts waste (semantic cache), exposes metrics (Prometheus), and gives an
-admin view of spend.
+Calling LLMs directly gets expensive and opaque: no central cost view and
+no deduplication. This gateway adds a routing layer that picks a provider/model
+by estimated prompt complexity, avoids paying twice for identical requests
+(exact-match cache) and exposes cost/latency metrics (Prometheus).
 
 ## 2. Architecture
 
 ```mermaid
 flowchart LR
   C[Client] --> GW[FastAPI Gateway]
-  GW --> SEM{Similar to cached?}
-  SEM -->|hit| CACHE[(Semantic Cache)]
+  GW --> SEM{Identical request cached?}
+  SEM -->|hit| CACHE[(Redis response cache)]
   SEM -->|miss| ROUTE[Router: OpenAI/Anthropic]
   ROUTE --> P1[OpenAI]
   ROUTE --> P2[Anthropic]
   GW --> MET[MetricsCollector]
   MET --> PROM[(Prometheus :/metrics)]
-  GW --> ADMIN[Admin API: spend view]
+  GW --> ADMIN[Admin API: keys + usage, token protected]
 ```
 
 ```
@@ -32,10 +32,10 @@ flowchart LR
    ▼
 ┌──────────────────────── FastAPI Gateway ───────────────────────┐
 │  proxy.py  ──▶ router.py ──▶ providers/{openai,anthropic}        │
-│  cache.py  ──▶ SemanticCache (vector similarity)                │
+│  cache.py  ──▶ ResponseCache (Redis, exact match)               │
 │  metrics.py─▶ Prometheus counters/histograms                     │
 │  auth.py   ──▶ request auth                                      │
-│  admin.py  ──▶ spend dashboard API                              │
+│  admin.py  ──▶ API keys + usage (admin token)                   │
 └─────────────────────────────────────────────────────────────────┘
    │                                  │
    ▼                                  ▼
@@ -44,9 +44,9 @@ flowchart LR
 
 ## 3. Components
 - `src/routes/proxy.py` — proxy endpoint, provider selection.
-- `src/routes/admin.py` — admin/spend view.
+- `src/routes/admin.py` — API key management and a usage endpoint, protected by `ADMIN_TOKEN`.
 - `src/services/router.py` — provider routing logic.
-- `src/services/cache.py` — semantic cache (similar request → cached answer).
+- `src/services/cache.py` — exact-match response cache in Redis (same messages + model → cached answer). Not semantic.
 - `src/services/metrics.py` — Prometheus collectors.
 - `src/services/providers/` — OpenAI & Anthropic provider clients.
 - `prometheus/prometheus.yml` — scrape config.
@@ -58,12 +58,42 @@ uvicorn src.main:app --port 8000
 # metrics: GET /metrics
 ```
 
+### Usage tracking
+Each provider call is stored in the `usage_logs` table (API key, provider, model,
+tokens, cost, latency); cache hits are not logged. `GET /admin/usage` aggregates it
+per provider/model.
+
+### Admin API
+`/admin/keys` (create/list API keys) and `/admin/usage` require
+`Authorization: Bearer <ADMIN_TOKEN>`. If `ADMIN_TOKEN` is empty the admin API
+is disabled (HTTP 503). Generate one with `openssl rand -hex 32`.
+
 ## 5. Cost model
 Every request increments `llm_gateway_requests_total{provider,model,status}`
-and records latency. The semantic cache prevents re-paying for near-identical
-prompts — the single biggest cost lever in practice.
+and records latency. The response cache prevents re-paying for *identical* requests
+(same messages and model, in the same order); a rephrased prompt is a miss.
 
-## 6. CI
+## 6. Request rules
+`POST /v1/chat/completions` (Bearer API key) accepts `model` = `auto` or one of
+the models in the price table, 1-100 messages with role `system|user|assistant`
+and string content, `temperature` 0-2, and `max_tokens` up to 4096 (default
+1024). An explicit model is sent to its own provider; `auto` picks by prompt
+complexity. Provider failures return a generic 502 (details only in the logs).
+
+## 7. Known limitations
+- The cache is exact-match, not semantic.
+- No fallback to another provider when a call fails (the `local` entry in
+  `PROVIDER_PREFERENCE_ORDER` has no implementation yet).
+- The token-bucket rate limiter in `src/middleware/rate_limit.py` is not wired in.
+- Model names and prices in `proxy.py` / `router.py` are hard-coded and may be
+  out of date; check the provider docs before relying on cost numbers.
+- Responses are not streamed.
+
+## 8. Roadmap
+- Semantic cache (embeddings + similarity threshold).
+- Provider fallback; wire in rate limiting; log cache hits in usage.
+
+## 9. CI
 `.github/workflows/ci.yml` — syntax check + pytest, least-privilege
 permissions, pinned action versions, Dependabot enabled.
 

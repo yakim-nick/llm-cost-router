@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import json
 import hashlib
+import json
 
 import redis.asyncio as redis
 
@@ -13,10 +13,12 @@ _HITS_COUNTER_KEY = "stats:cache_hits"
 
 
 class ResponseCache:
-    """Deduplicate semantically identical prompts by message+model.
+    """Exact-match response cache keyed by messages + model.
 
-    In-memory before connect: all reads/writes no-op until the client is set,
-    so the cache degrades gracefully when Redis is unavailable.
+    This is NOT a semantic cache: only byte-identical message lists (same order,
+    same text) for the same model hit. Similar-but-different prompts miss.
+    Before ``connect()`` all reads/writes no-op, so the gateway still works
+    (without caching) when Redis was never connected.
     """
 
     def __init__(self, ttl: int = 3600):
@@ -33,7 +35,7 @@ class ResponseCache:
             await self._client.aclose()
 
     def _make_key(self, messages: list[dict], model: str) -> str:
-        """Derive a stable cache key from messages+model (order-insensitive)."""
+        """Derive a stable cache key from messages+model (message order matters)."""
         raw = json.dumps(messages, sort_keys=True) + model
         digest = hashlib.sha256(raw.encode()).hexdigest()
         return f"{_CACHE_KEY_PREFIX}{digest}"
@@ -52,7 +54,9 @@ class ResponseCache:
 
     async def count_cache_hits(self) -> int:
         """Return the total number of cache hits recorded so far."""
-        value = await self._client.get(_HITS_COUNTER_KEY)  # type: ignore[union-attr]
+        if not self._client:
+            return 0
+        value = await self._client.get(_HITS_COUNTER_KEY)
         return int(value) if value is not None else 0
 
     async def increment_hits(self) -> None:

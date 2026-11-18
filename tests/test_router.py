@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from src.services.auth import AuthService
 from src.services.cache import ResponseCache
 from src.services.router import ComplexityRouter
-from src.services.auth import AuthService
 
 
 class TestResponseCache:

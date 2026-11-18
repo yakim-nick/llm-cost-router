@@ -1,24 +1,36 @@
 from __future__ import annotations
 
-import time
 import logging
-
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
-
+import time
 from functools import lru_cache
 
-from src.services.router import ComplexityRouter
-from src.services.providers.openai_provider import OpenAIProvider
-from src.services.providers.anthropic_provider import AnthropicProvider
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from src.config import settings
 from src.services.auth import AuthService
+from src.services.providers.anthropic_provider import AnthropicProvider
+from src.services.providers.openai_provider import OpenAIProvider
+from src.services.router import ComplexityRouter
+from src.services.usage import record_usage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["proxy"])
 
 _complexity_router = ComplexityRouter()
-_openai = OpenAIProvider()
-_anthropic = AnthropicProvider()
+
+
+@lru_cache(maxsize=1)
+def _get_openai() -> OpenAIProvider:
+    """Build the OpenAI client on first use so the app boots without that key."""
+    return OpenAIProvider()
+
+
+@lru_cache(maxsize=1)
+def _get_anthropic() -> AnthropicProvider:
+    """Build the Anthropic client on first use so the app boots without that key."""
+    return AnthropicProvider()
+
 
 # USD per prompt/completion token for each routing model. Unknown models
 # fall back to $0 so they never silently inflate the reported cost.
@@ -36,14 +48,56 @@ def _get_auth() -> AuthService:
     return AuthService()
 
 
+ALLOWED_ROLES = {"system", "user", "assistant"}
+MAX_MESSAGES = 100
+MAX_MESSAGE_CHARS = 32_000
+
+
 class ChatRequest(BaseModel):
+    """Validated chat request. Only known models (or "auto") are accepted so a
+    caller cannot make the gateway spend money on an arbitrary expensive model."""
+
+    model_config = ConfigDict(extra="forbid")
+
     model: str = "auto"
     messages: list[dict]
     temperature: float | None = None
     max_tokens: int | None = None
 
-    class Config:
-        extra = "forbid"
+    @field_validator("model")
+    @classmethod
+    def _known_model(cls, value: str) -> str:
+        if value != "auto" and value not in COST_PER_TOKEN:
+            allowed = ", ".join(["auto", *COST_PER_TOKEN])
+            raise ValueError(f"unknown model; allowed: {allowed}")
+        return value
+
+    @field_validator("messages")
+    @classmethod
+    def _valid_messages(cls, value: list[dict]) -> list[dict]:
+        if not value or len(value) > MAX_MESSAGES:
+            raise ValueError(f"messages must contain 1-{MAX_MESSAGES} items")
+        for message in value:
+            content = message.get("content")
+            if message.get("role") not in ALLOWED_ROLES or not isinstance(content, str):
+                raise ValueError("each message needs a valid role and string content")
+            if len(content) > MAX_MESSAGE_CHARS:
+                raise ValueError(f"message content longer than {MAX_MESSAGE_CHARS} characters")
+        return value
+
+    @field_validator("temperature")
+    @classmethod
+    def _valid_temperature(cls, value: float | None) -> float | None:
+        if value is not None and not 0.0 <= value <= 2.0:
+            raise ValueError("temperature must be between 0 and 2")
+        return value
+
+    @field_validator("max_tokens")
+    @classmethod
+    def _valid_max_tokens(cls, value: int | None) -> int | None:
+        if value is not None and not 1 <= value <= settings.max_tokens_limit:
+            raise ValueError(f"max_tokens must be between 1 and {settings.max_tokens_limit}")
+        return value
 
 
 @router.post("/chat/completions")
@@ -66,6 +120,14 @@ async def chat_completions(request: Request, body: ChatRequest):
 
     provider_result, elapsed = await _call_provider(provider, model, body)
     _record_metrics(request, provider, model, provider_result, elapsed)
+    await record_usage(
+        api_key.get("id"),
+        provider,
+        model,
+        provider_result["usage"],
+        _estimate_cost(model, provider_result),
+        elapsed,
+    )
     await request.app.state.cache.set(cache_key, model, provider_result["content"])
 
     logger.info(
@@ -98,13 +160,16 @@ def _resolve_route(body: ChatRequest) -> tuple[str, str, float]:
     routing decision stays auditable in logs and metrics.
     """
     complexity = _complexity_router.assess_complexity(body.messages)
+    if body.model != "auto":
+        # An explicit model decides its own provider; complexity is only logged.
+        return _provider_for_model(body.model), body.model, complexity
     provider, tier = _complexity_router.select_provider(complexity)
-    model = (
-        body.model
-        if body.model != "auto"
-        else _complexity_router.select_model(provider, tier, complexity)
-    )
-    return provider, model, complexity
+    return provider, _complexity_router.select_model(provider, tier, complexity), complexity
+
+
+def _provider_for_model(model: str) -> str:
+    """Map a concrete model name to the provider that serves it."""
+    return "anthropic" if model.startswith("claude") else "openai"
 
 
 async def _call_provider(provider: str, model: str, body: ChatRequest) -> tuple[dict, float]:
@@ -116,22 +181,23 @@ async def _call_provider(provider: str, model: str, body: ChatRequest) -> tuple[
     start = time.perf_counter()
     try:
         if provider == "anthropic":
-            result = await _anthropic.chat_completion(model, body.messages, **kwargs)
+            result = await _get_anthropic().chat_completion(model, body.messages, **kwargs)
         else:
-            result = await _openai.chat_completion(model, body.messages, **kwargs)
+            result = await _get_openai().chat_completion(model, body.messages, **kwargs)
         return result, time.perf_counter() - start
     except Exception as exc:
-        logger.error(f"Provider call failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Provider error: {str(exc)}")
+        logger.exception("Provider call failed")
+        # The real error is logged above; do not leak provider details to clients.
+        raise HTTPException(status_code=502, detail="Upstream provider error") from exc
 
 
 def _build_provider_kwargs(body: ChatRequest) -> dict:
     """Collect the optional generation parameters into provider kwargs."""
-    kwargs = {}
+    kwargs: dict = {}
     if body.temperature is not None:
         kwargs["temperature"] = body.temperature
-    if body.max_tokens is not None:
-        kwargs["max_tokens"] = body.max_tokens
+    # Anthropic requires max_tokens; sending it for OpenAI as well keeps spend bounded.
+    kwargs["max_tokens"] = body.max_tokens or settings.default_max_tokens
     return kwargs
 
 
