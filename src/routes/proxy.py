@@ -1,17 +1,16 @@
 from __future__ import annotations
 
-import time
 import logging
-
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
-
+import time
 from functools import lru_cache
 
-from src.services.router import ComplexityRouter
-from src.services.providers.openai_provider import OpenAIProvider
-from src.services.providers.anthropic_provider import AnthropicProvider
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+
 from src.services.auth import AuthService
+from src.services.providers.anthropic_provider import AnthropicProvider
+from src.services.providers.openai_provider import OpenAIProvider
+from src.services.router import ComplexityRouter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["proxy"])
@@ -121,8 +120,8 @@ async def _call_provider(provider: str, model: str, body: ChatRequest) -> tuple[
             result = await _openai.chat_completion(model, body.messages, **kwargs)
         return result, time.perf_counter() - start
     except Exception as exc:
-        logger.error(f"Provider call failed: {exc}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Provider error: {str(exc)}")
+        logger.exception("Provider call failed")
+        raise HTTPException(status_code=502, detail=f"Provider error: {exc!s}")
 
 
 def _build_provider_kwargs(body: ChatRequest) -> dict:

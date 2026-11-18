@@ -1,5 +1,5 @@
-from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
+from pydantic_settings import BaseSettings
 
 # Load .env first so settings below can be overridden from the environment.
 load_dotenv()
@@ -22,6 +22,10 @@ class Settings(BaseSettings):
 
     # Comma-separated provider names in preference order (first = cheapest).
     provider_preference_order: str = "openai,anthropic,local"
+
+    # Bearer token that protects /admin/*. Empty means the admin API is disabled
+    # (fail closed), so a missing variable can never leave key creation open.
+    admin_token: str = ""
 
     log_level: str = "INFO"
     environment: str = "development"

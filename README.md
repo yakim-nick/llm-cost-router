@@ -58,6 +58,11 @@ uvicorn src.main:app --port 8000
 # metrics: GET /metrics
 ```
 
+### Admin API
+`/admin/keys` (create/list API keys) and `/admin/usage` require
+`Authorization: Bearer <ADMIN_TOKEN>`. If `ADMIN_TOKEN` is empty the admin API
+is disabled (HTTP 503). Generate one with `openssl rand -hex 32`.
+
 ## 5. Cost model
 Every request increments `llm_gateway_requests_total{provider,model,status}`
 and records latency. The semantic cache prevents re-paying for near-identical

@@ -41,7 +41,6 @@ async def init_db() -> None:
 
 async def close_db() -> None:
     """Close the connection pool if it was opened."""
-    global _pool
     if _pool:
         await _pool.close()
 

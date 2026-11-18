@@ -1,14 +1,33 @@
 from __future__ import annotations
 
+import secrets
 from functools import lru_cache
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
-from src.services.auth import AuthService
+from src.config import settings
 from src.models.database import get_pool
+from src.services.auth import AuthService
 
-router = APIRouter(tags=["admin"])
+
+async def require_admin(request: Request) -> None:
+    """Allow the request only with the configured admin bearer token.
+
+    Fails closed: when ADMIN_TOKEN is unset the admin API is disabled (503),
+    and a wrong or missing token is rejected (401). The comparison is
+    constant-time so the token cannot be guessed from response timing.
+    """
+    expected = settings.admin_token
+    if not expected:
+        raise HTTPException(status_code=503, detail="Admin API disabled: ADMIN_TOKEN is not set")
+    header = request.headers.get("Authorization", "")
+    supplied = header.removeprefix("Bearer ") if header.startswith("Bearer ") else ""
+    if not secrets.compare_digest(supplied.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Invalid or missing admin token")
+
+
+router = APIRouter(tags=["admin"], dependencies=[Depends(require_admin)])
 
 VALID_TIERS = ("standard", "premium", "unlimited")
 
