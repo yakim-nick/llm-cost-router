@@ -12,6 +12,7 @@ from src.services.auth import AuthService
 from src.services.providers.anthropic_provider import AnthropicProvider
 from src.services.providers.openai_provider import OpenAIProvider
 from src.services.router import ComplexityRouter
+from src.services.usage import record_usage
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["proxy"])
@@ -119,6 +120,14 @@ async def chat_completions(request: Request, body: ChatRequest):
 
     provider_result, elapsed = await _call_provider(provider, model, body)
     _record_metrics(request, provider, model, provider_result, elapsed)
+    await record_usage(
+        api_key.get("id"),
+        provider,
+        model,
+        provider_result["usage"],
+        _estimate_cost(model, provider_result),
+        elapsed,
+    )
     await request.app.state.cache.set(cache_key, model, provider_result["content"])
 
     logger.info(

@@ -137,3 +137,19 @@ def test_explicit_model_is_sent_to_its_own_provider(ctx):
     simple = {"model": "claude-3-haiku", "messages": BODY["messages"]}
     client.post("/v1/chat/completions", json=simple, headers=AUTH)
     assert len(anthropic.calls) == 1 and not openai.calls
+
+
+def test_successful_call_is_recorded_in_usage_log(ctx, monkeypatch):
+    client, *_ = ctx
+    rows = []
+
+    async def fake_record(api_key_id, provider, model, usage, cost, latency):
+        rows.append((api_key_id, provider, model, usage["prompt_tokens"], cost))
+
+    monkeypatch.setattr(proxy, "record_usage", fake_record)
+    client.post("/v1/chat/completions", json=BODY, headers=AUTH)
+    client.post("/v1/chat/completions", json=BODY, headers=AUTH)  # cache hit, not logged
+    assert len(rows) == 1
+    key_id, provider, model, prompt_tokens, cost = rows[0]
+    assert (key_id, provider, model, prompt_tokens) == (1, "openai", "gpt-4o-mini", 10)
+    assert cost > 0
